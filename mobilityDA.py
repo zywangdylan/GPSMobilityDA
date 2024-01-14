@@ -4,18 +4,30 @@ import os
 import osmnx as ox
 from shapely.geometry import Point
 from tqdm import tqdm
+from datetime import datetime
 
 # Global Parameters
+# Length of the progress bar in the console
 bar_length = 120
 
+# Base directory path of data, with all .plt files
 base_dir = "./Data"
+
+# Variables for data transforming
 place_name = "Beijing, China"
 place_boundary = ox.geocode_to_gdf(place_name)
+
 start_date = "2010-01-01"
 end_date = "2010-06-30"
+
+night_start_hour = 22
+night_end_hour = 6
+
+# Path for csv storage
 raw_csv_path = "./raw_trajectory_df.csv"
 filtered_csv_path = "./filter_trajectory_df.csv"
-
+night_csv_path = "./night_trajectory_df.csv"
+day_csv_path = "./day_trajectory_df.csv"
 
 def save_csv(df, save_path, chunk_size=1000):
     """
@@ -242,28 +254,78 @@ def filter_users_by_min_pings(df, min_pings):
 
 
 # Data Pre-processing
-raw_df = read_all_plt()
-
 if os.path.exists(filtered_csv_path):
     print(f"CSV file found at {filtered_csv_path}. Reading the DataFrame "
           f"from CSV.")
     filter_df = load_csv(filtered_csv_path)
 else:
     print("Start filtering dataframe by region and date")
+    raw_df = read_all_plt()
     filter_df = filter_by_region(filter_by_date(raw_df, start_date, end_date))
+
+    # Add a datetime timestamp in the df
+    filter_df['datetime'] = pd.to_datetime(filter_df['date'] + ' ' + filter_df[
+        'time'])
+
+    # Drop the boolean column after filtering
+    filter_df = filter_df.drop('is_in_target_region', axis=1)
     save_csv(filter_df, filtered_csv_path)
 
 
+def is_night_time(timestamp):
+    """
+    Check if a given timestamp is during the night.
+
+    Parameters:
+        timestamp (datetime): The timestamp to be checked.
+
+    Returns:
+        bool: True if the timestamp is during the night, False otherwise.
+    """
+    if pd.isnull(timestamp):
+        return False
+
+    timestamp = pd.to_datetime(timestamp, errors='coerce')
+
+    # Define night time range
+    night_start = timestamp.replace(hour=night_start_hour, minute=0,
+                                    second=0, microsecond=0)
+    night_end = timestamp.replace(hour=night_end_hour, minute=0, second=0,
+                                  microsecond=0)
+
+    # Adjust for timestamps after midnight
+    if timestamp.hour < 6:
+        night_start = night_start - pd.Timedelta(days=1)
+
+    return night_start <= timestamp <= night_end or timestamp <= night_end
+
+
+# Parse and transform the data to be able to identify pings that occurred
+# at night
+if os.path.exists(night_csv_path) and os.path.exists(day_csv_path):
+    print(f"CSV file found at {night_csv_path} and {day_csv_path}. Reading "
+          f"the DataFrame from CSV.")
+    night_pings = load_csv(night_csv_path)
+    day_pings = load_csv(day_csv_path)
+else:
+    tqdm.pandas(desc="Splitting pings during night/day", ncols=bar_length)
+    filter_df['is_night'] = filter_df['datetime'].progress_apply(is_night_time)
+    night_pings = filter_df[filter_df['is_night']]
+    day_pings = filter_df[~filter_df['is_night']]
+
+    # Drop the temporary is_night column
+    night_pings = night_pings.drop('is_night', axis=1)
+    day_pings = day_pings.drop('is_night', axis=1)
+
+    # Save to csv file
+    save_csv(night_pings, night_csv_path)
+    save_csv(day_pings, day_csv_path)
+
+
 # Next Step:
-# 1. Create a github repo for this project
-# 2. Discard users with very few pings in that preiod in the specified location
-# 3. Describe the methodology and tools used to prepare this data and
-# provide some insights on its completeness and density
-# 4. Parse and transform the data to be able to identify pings that occurred
-#  at night (you are free to interpret what "night" means, as different
-# ranges could be valid or convenient
 # 5. Plot the distribution of these pings for some users.
 # 6. How do they compare with those during the day?
+
 # 7. Propose some algorithm of your preference for clustering these
 # nighttime pings with the goal of identifying home locations and
 # distinguishing them from other locations.
@@ -276,5 +338,4 @@ else:
 # they have? Compare the results.
 # 10. Would it be challenging to scale this to multiple users? Provide a few
 #  plots to support your reasoning about your findings.
-
 
