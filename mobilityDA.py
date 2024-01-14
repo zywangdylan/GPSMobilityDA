@@ -247,8 +247,7 @@ raw_df = read_all_plt()
 if os.path.exists(filtered_csv_path):
     print(f"CSV file found at {filtered_csv_path}. Reading the DataFrame "
           f"from CSV.")
-    filter_df = filter_users_by_min_pings(load_csv(filtered_csv_path), 1000)
-    save_csv(filter_df, filtered_csv_path)
+    filter_df = load_csv(filtered_csv_path)
 else:
     print("Start filtering dataframe by region and date")
     filter_df = filter_by_region(filter_by_date(raw_df, start_date, end_date))
