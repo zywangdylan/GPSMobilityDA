@@ -93,3 +93,33 @@ entertainment spots. This change reflects a transition from the bustling,
 transit-oriented daytime to a more localized and leisure-focused night, 
 highlighting the dual roles urban spaces play in accommodating work and 
 leisure, a key insight for urban planning and service optimization.
+
+### Identify home locations
+
+DBSCAN (Density-Based Spatial Clustering of Applications with Noise) is an 
+effective algorithm for clustering nighttime pings to identify home 
+locations. DBSCAN excels in identifying clusters of arbitrary shapes and 
+sizes, making it well-suited for geospatial data that can be irregularly 
+distributed. It operates by grouping points that are closely packed 
+together and marking points as outliers if they lie alone in low-density 
+regions. This characteristic is particularly beneficial for distinguishing 
+permanent residences from transient stays like hotels, as the latter would 
+typically not exhibit the same level of nightly recurrence in the data.
+
+For individuals staying at multiple residences or those who have moved 
+permanently, DBSCAN's flexibility in forming clusters based on density 
+allows for the identification of multiple potential home locations. This 
+adaptability, however, means the algorithm might need supplementary 
+temporal analysis to discern between past and current residences.
+
+By adjusting its eps (maximum distance between two samples) and min_samples 
+(minimum points to form a dense region) parameters, DBSCAN effectively 
+handles data sparsity and addresses challenges like multiple residences or 
+relocation. Its performance, typically O(n log n), makes it suitable for 
+large datasets, though its efficiency depends on the choice of eps and data 
+quality. This approach requires careful preprocessing to manage GPS data 
+inaccuracies and ensure reliable identification of home locations. By using 
+the pings during night, it can more accurately determine the home location 
+instead of getting some locations like work spaces etc. since users will 
+probably stay around home location during the night.
+

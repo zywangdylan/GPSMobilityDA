@@ -1,14 +1,19 @@
 import pandas as pd
+import numpy as np
 import glob
 import os
 import osmnx as ox
 from shapely.geometry import Point
 from tqdm import tqdm
 from datetime import datetime
+from geopy.geocoders import Nominatim
 import geopandas as gpd
 import contextily as ctx
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.cluster import DBSCAN
+
 
 # Global Parameters
 # Length of the progress bar in the console
@@ -32,6 +37,8 @@ raw_csv_path = "./raw_trajectory_df.csv"
 filtered_csv_path = "./filter_trajectory_df.csv"
 night_csv_path = "./night_trajectory_df.csv"
 day_csv_path = "./day_trajectory_df.csv"
+
+matplotlib.rcParams['font.family'] = 'Songti SC'
 
 
 def save_csv(df, save_path, chunk_size=1000):
@@ -351,7 +358,8 @@ def convert_to_geodf(df):
        GeoDataFrame
     """
     return gpd.GeoDataFrame(
-        df, geometry=[Point(xy) for xy in zip(df.longitude, df.latitude)], crs="EPSG:4326")
+        df, geometry=[Point(xy) for xy in zip(df.longitude, df.latitude)],
+        crs="EPSG:4326")
 
 
 def plot_pings(gdf_day, gdf_night):
@@ -428,15 +436,86 @@ gdf_day_pings_selected = gdf_day_pings[gdf_day_pings['user_id'].isin(
     selected_users)]
 gdf_night_pings_selected = gdf_night_pings[gdf_night_pings['user_id'].isin(
     selected_users)]
-plot_pings(gdf_day_pings_selected, gdf_night_pings_selected)
+# plot_pings(gdf_day_pings_selected, gdf_night_pings_selected)
+
+
+def get_address_from_coord(lat, lng):
+    geolocator = Nominatim(user_agent="myGeocodeApp")
+    location = geolocator.reverse((lat, lng), exactly_one=True)
+    address = location.address if location else "Address not found"
+    return address
+
+
+def plot_user_home_pings(df, home_location, home_loc_address):
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df.longitude, df.latitude)
+    )
+    gdf.set_crs(epsg=4326, inplace=True)
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Plot all pings
+    gdf.plot(ax=ax, color='blue', markersize=5, alpha=0.5, label='Pings')
+
+    # Highlight the home location
+    home_point = gpd.GeoDataFrame(
+        [{'geometry': gpd.points_from_xy([home_location.longitude],
+                                         [home_location.latitude])[0]}],
+        crs='EPSG:4326'
+    )
+
+    sns.kdeplot(x=gdf.geometry.x, y=gdf.geometry.y,
+                ax=ax, cmap="Blues", fill=True, alpha=0.7)
+
+    home_point.plot(ax=ax, color='red', markersize=50, label='Home Location')
+
+    # Add basemap
+    ctx.add_basemap(ax, crs=gdf.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+
+    # Set axis
+    ax.set_axis_off()
+
+    # Add the address below the plot
+    plt.gcf().text(0.5, 0.1, home_loc_address, ha='center', va='bottom',
+                   fontsize=12)
+
+    # Add legend
+    ax.legend()
+
+    plt.show()
+
+
+# DBSCAN to find the home location for a user
+user_id_of_interest = 114
+night_ping_for_user = night_pings[night_pings['user_id'] ==
+                                  user_id_of_interest].copy()
+
+# Convert latitude and longitude to radians
+coords = night_ping_for_user[['latitude', 'longitude']].to_numpy()
+coords_in_radians = np.radians(coords)
+
+kms_per_radian = 6371.0088  # constant to convert radians to kilometers
+epsilon = 100 / 1000 / kms_per_radian  # 100 meters in radians
+
+db = DBSCAN(eps=epsilon, min_samples=5, algorithm='ball_tree',
+            metric='haversine').fit(coords_in_radians)
+
+night_ping_for_user.loc[:, 'cluster'] = db.labels_
+
+# Find the cluster with the most pings
+home_cluster = night_ping_for_user['cluster'].value_counts().idxmax()
+# Get the average (mean) coordinates of the home cluster
+home_location = (night_ping_for_user[night_ping_for_user['cluster'] ==
+                                     home_cluster][['latitude',
+                                                   'longitude']].mean())
+home_loc_address = get_address_from_coord(home_location['latitude'],
+                                          home_location['longitude'])
+plot_user_home_pings(night_ping_for_user, home_location, home_loc_address)
 
 # Next Step:
-# 5. Plot the distribution of these pings for some users.
-# 6. How do they compare with those during the day?
 
-# 7. Propose some algorithm of your preference for clustering these
-# nighttime pings with the goal of identifying home locations and
-# distinguishing them from other locations.
 # 8. Describe this algorithm in detail and how it will tackle problems like
 # data sparsity, people staying in hotels or other residences many nights,
 # and people moving to a different location permanently. What is the
