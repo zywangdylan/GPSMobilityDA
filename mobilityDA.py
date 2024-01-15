@@ -5,6 +5,10 @@ import osmnx as ox
 from shapely.geometry import Point
 from tqdm import tqdm
 from datetime import datetime
+import geopandas as gpd
+import contextily as ctx
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Global Parameters
 # Length of the progress bar in the console
@@ -20,14 +24,15 @@ place_boundary = ox.geocode_to_gdf(place_name)
 start_date = "2010-01-01"
 end_date = "2010-06-30"
 
-night_start_hour = 22
-night_end_hour = 6
+night_start_hour = 20
+night_end_hour = 4
 
 # Path for csv storage
 raw_csv_path = "./raw_trajectory_df.csv"
 filtered_csv_path = "./filter_trajectory_df.csv"
 night_csv_path = "./night_trajectory_df.csv"
 day_csv_path = "./day_trajectory_df.csv"
+
 
 def save_csv(df, save_path, chunk_size=1000):
     """
@@ -253,6 +258,18 @@ def filter_users_by_min_pings(df, min_pings):
     return df[df['user_id'].isin(users_to_keep)]
 
 
+# user_id ping_counts
+# 45       6358
+# 46      16451
+# 65       2619
+# 79      11243
+# 113     24531
+# 114     12275
+# 128    176240
+# 142     55839
+# 153    203334
+# 163     57146
+# 169     48321
 # Data Pre-processing
 if os.path.exists(filtered_csv_path):
     print(f"CSV file found at {filtered_csv_path}. Reading the DataFrame "
@@ -321,6 +338,97 @@ else:
     save_csv(night_pings, night_csv_path)
     save_csv(day_pings, day_csv_path)
 
+
+def convert_to_geodf(df):
+    """
+    Convert df to geoDf
+
+    Parameters:
+       df (pandas.DataFrame): DataFrame with 'Latitude' and 'Longitude'
+       columns.
+
+    Returns:
+       GeoDataFrame
+    """
+    return gpd.GeoDataFrame(
+        df, geometry=[Point(xy) for xy in zip(df.longitude, df.latitude)], crs="EPSG:4326")
+
+
+def plot_pings(gdf_day, gdf_night):
+    """
+    Using the geoDataframe to plot the tracks on map
+
+    Parameters:
+       gdf_day(gdf): gdf pings at day
+       gdf_night(gdf): gdf pings at night
+
+    Returns:
+       None
+    """
+    # Get a list of unique users from both day and night GeoDataFrames
+    unique_users = pd.concat(
+        [gdf_day['user_id'], gdf_night['user_id']]).unique()
+
+    # Create a dictionary to map each user_id to a color
+    colormap = plt.cm.Dark2
+    color_map = {user_id: colormap(i % colormap.N) for i, user_id in
+                 enumerate(unique_users)}
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10), sharex=True, sharey=True)
+
+    # Plot for Day Pings
+    axes[0, 0].set_title('Day Pings')
+    # Plot each user's pings in different colors
+    for user_id, user_group in gdf_day.groupby('user_id'):
+        gpd.GeoDataFrame(user_group).plot(ax=axes[0, 0], color=color_map[
+            user_id], label=str(user_id), markersize=5, alpha=0.2)
+    ctx.add_basemap(axes[0, 0], crs=gdf_day.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+    axes[0, 0].legend(title='User ID')
+
+    # Plot for Night Pings
+    axes[0, 1].set_title('Night Pings')
+    # Plot each user's pings in different colors
+    for user_id, user_group in gdf_night.groupby('user_id'):
+        gpd.GeoDataFrame(user_group).plot(ax=axes[0, 1], label=str(user_id),
+                                          color=color_map[user_id],
+                                          markersize=5, alpha=0.2)
+    ctx.add_basemap(axes[0, 1], crs=gdf_night.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+    axes[0, 1].legend(title='User ID')
+
+    # Plot Day Pings Density Heatmap
+    axes[1, 0].set_title('Day Pings Density')
+    sns.kdeplot(x=gdf_day.geometry.x, y=gdf_day.geometry.y,
+                ax=axes[1, 0], cmap="Greens", fill=True, alpha=0.7)
+    ctx.add_basemap(ax=axes[1, 0], crs=gdf_day.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+
+    # Plot Night Pings Density Heatmap
+    axes[1, 1].set_title('Night Pings Density')
+    sns.kdeplot(x=gdf_night_pings.geometry.x, y=gdf_night_pings.geometry.y,
+                ax=axes[1, 1], cmap="Blues", fill=True, alpha=0.7)
+    ctx.add_basemap(ax=axes[1, 1], crs=gdf_night_pings.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+
+    for ax in axes.flatten():
+        ax.axis('off')
+
+    # Display the plot
+    plt.tight_layout()
+    plt.show()
+
+
+selected_users = [45, 79, 113, 114, 169]
+gdf_day_pings = convert_to_geodf(day_pings)
+gdf_night_pings = convert_to_geodf(night_pings)
+
+# Filter for selected users
+gdf_day_pings_selected = gdf_day_pings[gdf_day_pings['user_id'].isin(
+    selected_users)]
+gdf_night_pings_selected = gdf_night_pings[gdf_night_pings['user_id'].isin(
+    selected_users)]
+plot_pings(gdf_day_pings_selected, gdf_night_pings_selected)
 
 # Next Step:
 # 5. Plot the distribution of these pings for some users.

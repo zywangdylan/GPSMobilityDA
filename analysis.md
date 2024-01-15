@@ -51,3 +51,45 @@ these users were active.
 The variation in data completeness and density necessitates careful data 
 filtering. Analyses might need to segment users into categories based on 
 activity levels.
+
+## Data Analysis
+### Identify nighttime locations 
+
+**Description of Plotting Method**
+
+To visualize the distribution of day and night pings for selected users, 
+I have created a series of plots that include both individual pings and their 
+density heatmaps. This can be done using a combination of geopandas for 
+geospatial data handling, matplotlib for plotting, and seaborn for density 
+heatmaps. The visualization consists of two rows of subplots: the first row 
+shows individual pings on a map, and the second row displays the 
+corresponding density heatmaps.
+
+**Analysis of Night vs. Day Pings**
+
+During the day, the concentration of pings primarily within the city zone 
+suggests a strong focus on urban centers, likely due to work, education, 
+and daily errands, which are typically centered in more densely populated 
+areas. This pattern aligns with typical daytime activities, where 
+individuals converge in commercial, industrial, or central urban areas. In 
+contrast, the night plot showing a wider spread indicates a dispersal from 
+these concentrated zones to more varied locations, possibly reflecting a 
+return to residential areas that are more spread out, or engagement in 
+social and recreational activities that take place in different, perhaps 
+less central, parts of the city. This shift can highlight the transition 
+from professional and structured daytime activities to more personal and 
+leisure-oriented nighttime activities. Additionally, the expanded spread at 
+night might also suggest different lifestyle patterns, such as visiting 
+friends or family, dining out, or attending cultural events, which often 
+occur in diverse locations beyond the core urban area.
+
+Besides, the observed shift in activity centers and movement patterns 
+between day and night vividly showcases the dynamic nature of urban life. 
+Daytime is marked by concentrated activity in economic and commercial hubs, 
+with dense pings and distinct movement paths indicating active commuting 
+and work-related activities. In contrast, nighttime shows a dispersion of 
+activities, with a move towards residential areas or scattered 
+entertainment spots. This change reflects a transition from the bustling, 
+transit-oriented daytime to a more localized and leisure-focused night, 
+highlighting the dual roles urban spaces play in accommodating work and 
+leisure, a key insight for urban planning and service optimization.
