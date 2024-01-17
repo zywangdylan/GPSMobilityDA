@@ -38,6 +38,24 @@ You can also directly download preprocessed data frames in csv format from [here
 - `night_trajectory_df.csv`: Contains nighttime trajectory data.
 - `raw_trajectory_df.csv`: Contains the raw trajectory data.
 
+## File Structure
+```scss
+GPSMobilityDA/
+│
+├── Data/ (Data downloaded from Microsoft dataset)
+│   ├── 001
+│   ├── 002
+│   ├── 003
+│   └── ...
+│
+├── mobilityDA.py (main Python script for data analysis)
+│
+├── analysis.md (markdown file with project analysis)
+│
+└── *.png (processed map plots, e.g., homeLoc113.png, homeLoc114.png, ...)
+```
+
+
 ## Usage
 The main functionality is contained in `mobilityDA.py`, which includes data loading, preprocessing, DBSCAN clustering, and visualization of the results. Run the script/notebook to see the output plots and home location analysis. You can comment/uncomment some codes for plotting to see the plots you want. You can find the analysis in the `analysis.md` file.
 
