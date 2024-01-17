@@ -3,17 +3,17 @@ import numpy as np
 import glob
 import os
 import osmnx as ox
-from shapely.geometry import Point
-from tqdm import tqdm
-from datetime import datetime
-from geopy.geocoders import Nominatim
 import geopandas as gpd
 import contextily as ctx
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.cluster import DBSCAN
 
+from shapely.geometry import Point
+from tqdm import tqdm
+from datetime import datetime
+from geopy.geocoders import Nominatim
+from sklearn.cluster import DBSCAN
 
 # Global Parameters
 # Length of the progress bar in the console
@@ -265,18 +265,6 @@ def filter_users_by_min_pings(df, min_pings):
     return df[df['user_id'].isin(users_to_keep)]
 
 
-# user_id ping_counts
-# 45       6358
-# 46      16451
-# 65       2619
-# 79      11243
-# 113     24531
-# 114     12275
-# 128    176240
-# 142     55839
-# 153    203334
-# 163     57146
-# 169     48321
 # Data Pre-processing
 if os.path.exists(filtered_csv_path):
     print(f"CSV file found at {filtered_csv_path}. Reading the DataFrame "
@@ -436,22 +424,40 @@ gdf_day_pings_selected = gdf_day_pings[gdf_day_pings['user_id'].isin(
     selected_users)]
 gdf_night_pings_selected = gdf_night_pings[gdf_night_pings['user_id'].isin(
     selected_users)]
+# Plot day & night pings for selected users
 # plot_pings(gdf_day_pings_selected, gdf_night_pings_selected)
 
 
 def get_address_from_coord(lat, lng):
+    """
+    Getting the address name for given coordinate
+
+    Parameters:
+       lat(float): latitude of the location
+       lng(float): longitude of the location
+
+    Returns:
+       String: address name
+
+    """
     geolocator = Nominatim(user_agent="myGeocodeApp")
     location = geolocator.reverse((lat, lng), exactly_one=True)
     address = location.address if location else "Address not found"
     return address
 
 
-def plot_user_home_pings(df, home_location, home_loc_address):
-    gdf = gpd.GeoDataFrame(
-        df,
-        geometry=gpd.points_from_xy(df.longitude, df.latitude)
-    )
-    gdf.set_crs(epsg=4326, inplace=True)
+def plot_user_home_pings(df, user_loc):
+    """
+    Using the dataframe to plot the tracks and home for a single user
+
+    Parameters:
+        df(Pandas.dataframe): df of user's pings
+        user_loc(dict): home location(lat, lng) and address name
+
+    Returns:
+        None
+    """
+    gdf = convert_to_geodf(df)
 
     fig, ax = plt.subplots(figsize=(10, 10))
 
@@ -460,8 +466,8 @@ def plot_user_home_pings(df, home_location, home_loc_address):
 
     # Highlight the home location
     home_point = gpd.GeoDataFrame(
-        [{'geometry': gpd.points_from_xy([home_location.longitude],
-                                         [home_location.latitude])[0]}],
+        [{'geometry': gpd.points_from_xy([user_loc['lng']],
+                                         [user_loc['lat']])[0]}],
         crs='EPSG:4326'
     )
 
@@ -477,8 +483,11 @@ def plot_user_home_pings(df, home_location, home_loc_address):
     # Set axis
     ax.set_axis_off()
 
+    fig.suptitle(f'Home location plot for user '
+                 f'{df.iloc[0].user_id}', fontsize=16)
+
     # Add the address below the plot
-    plt.gcf().text(0.5, 0.1, home_loc_address, ha='center', va='bottom',
+    plt.gcf().text(0.5, 0.1, user_loc['address'], ha='center', va='bottom',
                    fontsize=12)
 
     # Add legend
@@ -487,42 +496,181 @@ def plot_user_home_pings(df, home_location, home_loc_address):
     plt.show()
 
 
-# DBSCAN to find the home location for a user
-user_id_of_interest = 114
-night_ping_for_user = night_pings[night_pings['user_id'] ==
-                                  user_id_of_interest].copy()
+def plot_full_vs_reduced_data(full_df, full_loc, reduced_df, reduced_loc):
+    """
+    Plots two subgraphs comparing the full dataset locations with the
+    reduced dataset home locations.
 
-# Convert latitude and longitude to radians
-coords = night_ping_for_user[['latitude', 'longitude']].to_numpy()
-coords_in_radians = np.radians(coords)
+    This function creates a visual comparison between all user locations in
+    the full dataset and the identified home locations in the reduced
+    dataset. It helps in understanding the impact of data reduction on the
+    accuracy of home location identification.
 
-kms_per_radian = 6371.0088  # constant to convert radians to kilometers
-epsilon = 100 / 1000 / kms_per_radian  # 100 meters in radians
+    Parameters:
+    - full_df (DataFrame): A DataFrame containing the full dataset
+    with columns ['geometry', 'user_id'], representing the complete set of
+    user location data.
+    - full_loc (str): A string representing the address or descriptive name
+    of the area covered by the full dataset. This text will be displayed
+    below the first subplot.
+    - reduced_df (DataFrame): A GDataFrame similar to full_df, but containing a
+    reduced set of user data. It should have the same structure as full_df.
+    - reduced_loc (str): A string representing the address or descriptive
+    name of the area covered by the reduced dataset. This text will be
+    displayed below the second subplot.
 
-db = DBSCAN(eps=epsilon, min_samples=5, algorithm='ball_tree',
-            metric='haversine').fit(coords_in_radians)
+    Returns:
+    None: The function creates and displays a matplotlib figure with two
+    subplots but does not return any value.
+    """
+    full_gdf = convert_to_geodf(full_df)
+    reduced_gdf = convert_to_geodf(reduced_df)
 
-night_ping_for_user.loc[:, 'cluster'] = db.labels_
+    fig, axes = plt.subplots(1, 2, figsize=(15, 10), sharex=True, sharey=True)
 
-# Find the cluster with the most pings
-home_cluster = night_ping_for_user['cluster'].value_counts().idxmax()
-# Get the average (mean) coordinates of the home cluster
-home_location = (night_ping_for_user[night_ping_for_user['cluster'] ==
-                                     home_cluster][['latitude',
-                                                   'longitude']].mean())
-home_loc_address = get_address_from_coord(home_location['latitude'],
-                                          home_location['longitude'])
-plot_user_home_pings(night_ping_for_user, home_location, home_loc_address)
+    # Plotting full data
+    axes[0].set_title("Full Data - Location")
+    full_gdf.plot(ax=axes[0], color='blue', markersize=5, alpha=0.5,
+                  label='Pings')
 
-# Next Step:
+    # Highlight the home location
+    home_point = gpd.GeoDataFrame(
+        [{'geometry': gpd.points_from_xy([full_loc['lng']],
+                                         [full_loc['lat']])[0]}],
+        crs='EPSG:4326'
+    )
 
-# 8. Describe this algorithm in detail and how it will tackle problems like
-# data sparsity, people staying in hotels or other residences many nights,
-# and people moving to a different location permanently. What is the
-# complexity of this algorithm?
-# 9. Implement this algorithm for a few users and provide the necessary
-# code. Would this algorithm work the same if the users had 10% of the data
-# they have? Compare the results.
-# 10. Would it be challenging to scale this to multiple users? Provide a few
-#  plots to support your reasoning about your findings.
+    sns.kdeplot(x=full_gdf.geometry.x, y=full_gdf.geometry.y,
+                ax=axes[0], cmap="Blues", fill=True, alpha=0.7)
+
+    home_point.plot(ax=axes[0], color='red', markersize=40, label='Home '
+                                                                  'Location')
+    ctx.add_basemap(ax=axes[0], crs=full_gdf.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+    # Add the address below the plot
+    axes[0].text(0.5, 0.05, full_loc['address'], ha='center', va='bottom',
+                 fontsize=12, transform=axes[0].transAxes)
+
+    home_point_reduced = gpd.GeoDataFrame(
+        [{'geometry': gpd.points_from_xy([reduced_loc['lng']],
+                                         [reduced_loc['lat']])[0]}],
+        crs='EPSG:4326'
+    )
+    # Plotting reduced data home locations
+    axes[1].set_title("Home Location")
+    reduced_gdf.plot(ax=axes[1], color='blue', markersize=5, alpha=0.5,
+                     label='Pings')
+    sns.kdeplot(x=reduced_gdf.geometry.x, y=reduced_gdf.geometry.y,
+                ax=axes[1], cmap="Blues", fill=True, alpha=0.7)
+    home_point_reduced.plot(ax=axes[1], color='red', markersize=40,
+                            label='Home Location')
+    ctx.add_basemap(ax=axes[1], crs=reduced_gdf.crs.to_string(),
+                    source=ctx.providers.OpenStreetMap.Mapnik)
+    # Add the address below the plot
+    axes[1].text(0.5, 0.05, reduced_loc['address'], ha='center', va='bottom',
+                 fontsize=12, transform=axes[1].transAxes)
+
+    fig.suptitle(f'Home location plots for user '
+                 f'{full_df.iloc[0].user_id}', fontsize=16)
+    # Setting shared axis properties
+    for ax in axes:
+        ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def find_home_locations(df, user_ids, eps_km=100, min_samples=10):
+    """
+    Find the home locations for a list of users using DBSCAN.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing user pings with columns [
+        'user_id', 'latitude', 'longitude', 'timestamp'].
+        user_ids (list): List of user IDs to find home locations for.
+        eps_km (int): The radius in kilometers to consider for the DBSCAN
+        neighborhood. Default is 100 meters.
+        min_samples (int): Minimum number of samples in a neighborhood for
+        DBSCAN. Default is 10.
+
+    Returns:
+        dict: A dictionary with user IDs as keys and their home locations as
+        {latitude, longitude, address_name}.
+    """
+    home_locations = {}
+    kms_per_radian = 6371.0088
+    eps = eps_km / 1000 / kms_per_radian  # Convert epsilon to radians
+
+    for user_id in user_ids:
+        night_ping = df[df['user_id'] == user_id].copy()
+
+        if night_ping.empty:
+            print(f"No data for user {user_id}")
+            continue
+
+        # Convert coordinates to radians
+        coords = night_ping[['latitude', 'longitude']].apply(np.radians)
+
+        db = DBSCAN(eps=eps, min_samples=min_samples, algorithm='ball_tree',
+                    metric='haversine').fit(coords)
+
+        night_ping['cluster'] = db.labels_
+
+        # Find the cluster with the most pings
+        home_cluster = night_ping['cluster'].value_counts().idxmax()
+        if home_cluster == -1:
+            print(f"No significant cluster for user {user_id}")
+            continue
+
+        # Get the average (mean) coordinates of the home cluster
+        home_location = night_ping[night_ping['cluster'] == home_cluster][[
+            'latitude', 'longitude']].mean()
+        home_locations[user_id] = {
+            'lat': home_location['latitude'],
+            'lng': home_location['longitude'],
+            'address': get_address_from_coord(home_location['latitude'],
+                                              home_location['longitude'])
+        }
+
+    return home_locations
+
+
+sample_users = [46, 114, 169]
+full_data_loc = find_home_locations(night_pings, sample_users)
+
+# Example of sampling 10% of the data
+reduced_data = night_pings.groupby('user_id').apply(lambda x: x.sample(
+    frac=0.1))
+
+reduced_data_loc = find_home_locations(reduced_data, sample_users)
+
+# Plotting a comparison plot for a single user
+comparing_user = 169
+
+# plot_full_vs_reduced_data(
+#     night_pings[night_pings['user_id'] == comparing_user],
+#     full_data_loc[comparing_user],
+#     reduced_data[reduced_data['user_id'] == comparing_user],
+#     reduced_data_loc[comparing_user]
+# )
+
+
+# user_id ping_counts
+# 45       6358
+# 46      16451
+# 65       2619
+# 79      11243
+# 113     24531
+# 114     12275
+# 128    176240
+# 142     55839
+# 153    203334
+# 163     57146
+# 169     48321
+plot_user = 163
+user_loc = find_home_locations(night_pings, [plot_user])
+plot_user_home_pings(
+    night_pings[night_pings['user_id'] == plot_user],
+    user_loc[plot_user]
+)
 

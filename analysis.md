@@ -123,3 +123,47 @@ the pings during night, it can more accurately determine the home location
 instead of getting some locations like work spaces etc. since users will 
 probably stay around home location during the night.
 
+**Reducing Data to 10%**
+
+When the data is reduced to 10%, the effectiveness of clustering algorithms 
+like DBSCAN in identifying home locations can be significantly impacted, 
+leading to a marked difference in results compared to using the full 
+dataset. With only a tenth of the original data, key patterns necessary for 
+accurate clustering might be lost, resulting in a failure to form 
+meaningful clusters or misidentification of home locations due to the 
+change in density dynamics. The reduction in data points increases sparsity,
+disrupting the density-dependent clustering process that DBSCAN relies on. 
+This is especially pronounced for users with originally sparse or irregular 
+pings, where the reduced data may no longer represent their typical 
+movement patterns or frequent locations. 
+
+Consequently, the algorithm may either fail to identify a cluster that 
+confidently represents a home location or may erroneously designate a less 
+frequently visited area as the home due to the randomness of the data 
+reduction. Adjusting the parameters of DBSCAN, such as eps (the 
+neighborhood size) and min_samples (the minimum points to form a dense 
+region), could partly mitigate these issues. However, the intrinsic loss of 
+data continuity and density often requires a more nuanced approach or 
+alternative methods to maintain the accuracy of home location 
+identification in such significantly reduced datasets.
+
+**Scaling to multiple users**
+
+Scaling the process of identifying home locations using clustering 
+algorithms like DBSCAN to multiple users can indeed present several challenges:
+
+1. Variability in User Patterns:
+  Different users may have distinct patterns in terms of their mobility, 
+   frequency of pings, and areas visited. A single set of DBSCAN parameters 
+   (eps and min_samples) might not be optimal for all users, requiring 
+   individual parameter tuning.
+
+2. Data Sparsity and Density: For users with fewer pings, the algorithm 
+   might struggle to form meaningful clusters. Conversely, for users with 
+   dense data, the algorithm might create too many clusters, complicating the 
+   identification of the actual home location.
+
+3. Computational Resources: Processing a large number of users, each with 
+   potentially thousands of location pings, requires significant 
+   computational resources. The complexity increases with the volume of 
+   data and the need for parameter optimization for each user.
