@@ -39,7 +39,7 @@ You can also directly download preprocessed data frames in csv format from [here
 - `raw_trajectory_df.csv`: Contains the raw trajectory data.
 
 ## File Structure
-```scss
+```
 GPSMobilityDA/
 │
 ├── Data/ (Data downloaded from Microsoft dataset)
@@ -47,6 +47,11 @@ GPSMobilityDA/
 │   ├── 002
 │   ├── 003
 │   └── ...
+│
+├── day_trajectory_df.csv
+├── filter_trajectory_df.csv
+├── night_trajectory_df.csv
+├── raw_trajectory_df.csv
 │
 ├── mobilityDA.py (main Python script for data analysis)
 │
